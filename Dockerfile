@@ -1,27 +1,34 @@
-FROM node:10.9.0-alpine
+ROM cloudbees/cloudbees-core-mm:2.138.2.2
 
-RUN npm install express
-RUN npm install pug --save
+LABEL maintainer "kmadel@cloudbees.com"
 
-ARG buildNumber="NOT_SET"
-ARG shortCommit="NOT_SET"
-ARG commitAuthor="NOT_SET"
-ARG context
+USER root
 
-LABEL net.beedemo.workshop.build.number=$buildNumber
-LABEL net.beedemo.workshop.commit=$shortCommit
-LABEL net.beedemo.workshop.commit.author=$commitAuthor
-LABEL net.beedemo.workshop.app.name=$context
+#skip setup wizard and disable CLI
+ENV JVM_OPTS -Djenkins.CLI.disabled=true -server
+ENV TZ="/usr/share/zoneinfo/America/New_York"
 
-ENV BUILD_NUMBER $buildNumber
-ENV SHORT_COMMIT $shortCommit
-ENV COMMIT_AUTHOR $commitAuthor
-ENV CONTEXT $context
+#Jenkins system configuration via init groovy scripts - see https://wiki.jenkins-ci.org/display/JENKINS/Configuring+Jenkins+upon+start+up 
+COPY ./init.groovy.d/* /usr/share/jenkins/ref/init.groovy.d/
+COPY ./license-activated/* /usr/share/jenkins/ref/license-activated-or-renewed-after-expiration.groovy.d/
+COPY ./quickstart/* /usr/share/jenkins/ref/quickstart.groovy.d/
 
-EXPOSE 8080
+#install suggested and additional plugins
+ENV JENKINS_UC http://jenkins-updates.cloudbees.com
 
-COPY views ./views 
-COPY public ./public
-COPY hello.js .
+#config-as-code plugin configuration
+COPY config-as-code.yml /usr/share/jenkins/config-as-code.yml
+ENV CASC_JENKINS_CONFIG /usr/share/jenkins/config-as-code.yml
 
-CMD node hello.js
+COPY ./jenkins_ref /usr/share/jenkins/ref
+COPY ./plugins/* /usr/share/jenkins/ref/plugins/
+
+#install suggested and additional plugins
+ENV JENKINS_UC http://jenkins-updates.cloudbees.com
+COPY plugins.txt plugins.txt
+COPY jenkins-support /usr/local/bin/jenkins-support
+COPY install-plugins.sh /usr/local/bin/install-plugins.sh
+
+RUN /usr/local/bin/install-plugins.sh $(cat plugins.txt)
+
+USER jenkins
